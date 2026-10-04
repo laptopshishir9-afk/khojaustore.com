@@ -61,6 +61,8 @@ export const AdminDashboard: React.FC = () => {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
+  const [adminErrorKey, setAdminErrorKey] = useState(0);
 
   // Data states
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -154,16 +156,20 @@ export const AdminDashboard: React.FC = () => {
   // Handle Admin Login
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAdminLoginError(null);
     if (!adminEmail.trim() || !adminPassword.trim()) {
-      showToast('Please enter both admin email and password.');
+      setAdminLoginError('Please enter both admin email/username and password.');
+      setAdminErrorKey(prev => prev + 1);
       return;
     }
     setIsLoggingIn(true);
     try {
       await loginAdmin(adminEmail.trim(), adminPassword);
       setAdminPassword('');
+      setAdminLoginError(null);
     } catch (err: any) {
-      showToast(err.message || 'Invalid administrator credentials');
+      setAdminLoginError(err.message || 'Invalid administrator email or password.');
+      setAdminErrorKey(prev => prev + 1);
     } finally {
       setIsLoggingIn(false);
     }
@@ -702,15 +708,33 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <form onSubmit={handleAdminLogin} className="space-y-4">
+                {adminLoginError && (
+                  <div
+                    key={adminErrorKey}
+                    className="animate-errorShake flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border-2 border-red-500 text-red-700 shadow-sm"
+                  >
+                    <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5 animate-pulse" />
+                    <div className="flex-1 text-xs">
+                      <p className="font-extrabold text-red-700 uppercase tracking-wide">Login Failed</p>
+                      <p className="font-medium text-red-600 mt-0.5">{adminLoginError}</p>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">Administrator Email / Username</label>
                   <input
                     type="text"
                     required
                     value={adminEmail}
-                    onChange={e => setAdminEmail(e.target.value)}
+                    onChange={e => {
+                      setAdminEmail(e.target.value);
+                      if (adminLoginError) setAdminLoginError(null);
+                    }}
                     placeholder="Enter admin email or username"
-                    className="w-full text-xs p-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className={`w-full text-xs p-2.5 bg-zinc-50 border rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-600 transition-colors ${
+                      adminLoginError ? 'border-red-500 bg-red-50/40' : 'border-zinc-200'
+                    }`}
                   />
                 </div>
 
@@ -720,16 +744,21 @@ export const AdminDashboard: React.FC = () => {
                     type="password"
                     required
                     value={adminPassword}
-                    onChange={e => setAdminPassword(e.target.value)}
+                    onChange={e => {
+                      setAdminPassword(e.target.value);
+                      if (adminLoginError) setAdminLoginError(null);
+                    }}
                     placeholder="Enter admin password"
-                    className="w-full text-xs p-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className={`w-full text-xs p-2.5 bg-zinc-50 border rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-600 transition-colors ${
+                      adminLoginError ? 'border-red-500 bg-red-50/40' : 'border-zinc-200'
+                    }`}
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isLoggingIn}
-                  className="w-full py-2.5 bg-zinc-900 hover:bg-red-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors active:scale-98"
+                  className="w-full py-2.5 bg-zinc-900 hover:bg-red-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors active:scale-98 cursor-pointer"
                 >
                   {isLoggingIn ? 'Verifying Credentials...' : 'Sign In to Admin Panel'}
                 </button>

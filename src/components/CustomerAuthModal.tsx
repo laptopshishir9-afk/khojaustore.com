@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Lock, Mail, Phone, MapPin, Package, Heart, LogOut, CheckCircle, Clock, ShieldCheck } from 'lucide-react';
+import { X, User, Lock, Mail, Phone, MapPin, Package, Heart, LogOut, CheckCircle, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useStore } from '../context/StoreContext.tsx';
 import * as api from '../services/api.ts';
 import type { Order } from '../types/index.ts';
@@ -15,6 +15,7 @@ export const CustomerAuthModal: React.FC = () => {
     loginCustomer,
     registerCustomer,
     logoutCustomer,
+    loginAdmin,
     products,
     openProductDetail,
     wishlist,
@@ -25,6 +26,8 @@ export const CustomerAuthModal: React.FC = () => {
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState(0);
 
   // Register form
   const [regName, setRegName] = useState('');
@@ -40,6 +43,10 @@ export const CustomerAuthModal: React.FC = () => {
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
   useEffect(() => {
+    setAuthError(null);
+  }, [isAuthModalOpen, authMode]);
+
+  useEffect(() => {
     if (isAuthModalOpen && currentUser) {
       setIsLoadingOrders(true);
       api.fetchCustomerOrders({ customerId: currentUser.id, customerEmail: currentUser.email })
@@ -51,13 +58,35 @@ export const CustomerAuthModal: React.FC = () => {
 
   if (!isAuthModalOpen) return null;
 
+  const triggerError = (msg: string) => {
+    setAuthError(msg);
+    setErrorKey(prev => prev + 1);
+  };
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
     setIsLoading(true);
+    const trimmedIdentifier = loginEmail.trim();
     try {
-      await loginCustomer(loginEmail, loginPassword);
+      // Allow admin credentials (username "admin" or admin email) to log in directly from here too
+      if (
+        trimmedIdentifier.toLowerCase() === 'admin' ||
+        trimmedIdentifier.toLowerCase() === 'admin@khojau.com'
+      ) {
+        try {
+          await loginAdmin(trimmedIdentifier, loginPassword);
+          setIsAuthModalOpen(false);
+          setLoginPassword('');
+          return;
+        } catch {
+          // If not matching admin password, fall through or show error inside login panel
+        }
+      }
+      await loginCustomer(trimmedIdentifier, loginPassword);
+      setLoginPassword('');
     } catch (err: any) {
-      showToast(err.message || 'Login failed. Please check credentials.');
+      triggerError(err.message || 'Login Failed! Invalid email or password.');
     } finally {
       setIsLoading(false);
     }
@@ -65,6 +94,7 @@ export const CustomerAuthModal: React.FC = () => {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
     setIsLoading(true);
     try {
       await registerCustomer({
@@ -79,7 +109,7 @@ export const CustomerAuthModal: React.FC = () => {
         }
       });
     } catch (err: any) {
-      showToast(err.message || 'Registration failed.');
+      triggerError(err.message || 'Registration Failed! Please check your details.');
     } finally {
       setIsLoading(false);
     }
@@ -226,16 +256,34 @@ export const CustomerAuthModal: React.FC = () => {
           ) : authMode === 'login' ? (
             /* Login Form */
             <form onSubmit={handleLoginSubmit} className="space-y-4">
+              {authError && (
+                <div
+                  key={errorKey}
+                  className="animate-errorShake flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border-2 border-red-500 text-red-700 shadow-sm"
+                >
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5 animate-pulse" />
+                  <div className="flex-1 text-xs">
+                    <p className="font-extrabold text-red-700 uppercase tracking-wide">Login Failed</p>
+                    <p className="font-medium text-red-600 mt-0.5">{authError}</p>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 mb-1">Email Address</label>
                 <div className="relative">
                   <input
-                    type="email"
+                    type="text"
                     required
                     value={loginEmail}
-                    onChange={e => setLoginEmail(e.target.value)}
+                    onChange={e => {
+                      setLoginEmail(e.target.value);
+                      if (authError) setAuthError(null);
+                    }}
                     placeholder="e.g. sujan@gmail.com"
-                    className="w-full text-xs p-2.5 pl-8 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className={`w-full text-xs p-2.5 pl-8 bg-zinc-50 border rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-600 transition-colors ${
+                      authError ? 'border-red-500 bg-red-50/40' : 'border-zinc-200'
+                    }`}
                   />
                   <Mail className="w-4 h-4 text-zinc-400 absolute left-2.5 top-2.5 pointer-events-none" />
                 </div>
@@ -248,9 +296,14 @@ export const CustomerAuthModal: React.FC = () => {
                     type="password"
                     required
                     value={loginPassword}
-                    onChange={e => setLoginPassword(e.target.value)}
+                    onChange={e => {
+                      setLoginPassword(e.target.value);
+                      if (authError) setAuthError(null);
+                    }}
                     placeholder="Enter account password"
-                    className="w-full text-xs p-2.5 pl-8 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className={`w-full text-xs p-2.5 pl-8 bg-zinc-50 border rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-600 transition-colors ${
+                      authError ? 'border-red-500 bg-red-50/40' : 'border-zinc-200'
+                    }`}
                   />
                   <Lock className="w-4 h-4 text-zinc-400 absolute left-2.5 top-2.5 pointer-events-none" />
                 </div>
@@ -259,7 +312,7 @@ export const CustomerAuthModal: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+                className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
               >
                 {isLoading ? 'Signing In...' : 'Log In to Account'}
               </button>
@@ -269,7 +322,7 @@ export const CustomerAuthModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setAuthMode('register')}
-                  className="font-bold text-red-600 hover:underline"
+                  className="font-bold text-red-600 hover:underline cursor-pointer"
                 >
                   Create New Account
                 </button>
@@ -278,6 +331,18 @@ export const CustomerAuthModal: React.FC = () => {
           ) : (
             /* Register Form */
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
+              {authError && (
+                <div
+                  key={errorKey}
+                  className="animate-errorShake flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border-2 border-red-500 text-red-700 shadow-sm"
+                >
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5 animate-pulse" />
+                  <div className="flex-1 text-xs">
+                    <p className="font-extrabold text-red-700 uppercase tracking-wide">Registration Failed</p>
+                    <p className="font-medium text-red-600 mt-0.5">{authError}</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">Full Name *</label>

@@ -43,12 +43,23 @@ const normalizeProduct = (p: Product): Product => ({
   images: (p.images || []).map((img) => resolveAssetUrl(img)),
 });
 
+export interface LocalAdminCredentials {
+  email: string;
+  username: string;
+  passwordHash?: string;
+  salt?: string;
+  plainPassword?: string;
+  isConfigured: boolean;
+  updatedAt: string;
+}
+
 export interface LocalStoreDB {
   settings: StoreSettings;
   products: Product[];
   reviews: Review[];
   orders: Order[];
-  customers: UserAccount[];
+  customers: (UserAccount & { password?: string })[];
+  adminCredentials?: LocalAdminCredentials;
 }
 
 const LOCAL_DB_KEY = 'khojau_static_store_db_v1';
@@ -73,6 +84,7 @@ export function getLocalStoreDB(): LocalStoreDB {
         reviews: Array.isArray(parsed.reviews) ? parsed.reviews : (rawStoreData.reviews as unknown as Review[]),
         orders: Array.isArray(parsed.orders) ? parsed.orders : (rawStoreData.orders as unknown as Order[]),
         customers: Array.isArray(parsed.customers) ? parsed.customers : (rawStoreData.customers as unknown as UserAccount[]),
+        adminCredentials: parsed.adminCredentials || (rawStoreData as any).adminCredentials,
       };
     }
   } catch (e) {
@@ -85,6 +97,7 @@ export function getLocalStoreDB(): LocalStoreDB {
     reviews: (rawStoreData.reviews as unknown as Review[]) || [],
     orders: (rawStoreData.orders as unknown as Order[]) || [],
     customers: (rawStoreData.customers as unknown as UserAccount[]) || [],
+    adminCredentials: (rawStoreData as any).adminCredentials,
   };
 }
 
